@@ -6,59 +6,72 @@ import pandas as pd
 import numpy as np
 
 
-#this reads one tidal data file, ignore headers and returns data w/ datetime + sea level
+
 def read_tidal_data(filename):
+
     """ 
-    reads tidal data file, skipping headers, parses data and time while cleaning missing/flagged values. 
-    returns a dataframe with (datetime) and (sealevel) columns 
-    --> sealevel is defined by ASLVZZ01 data
+    this function below will read the tidal data files, 
+    making sure to skip the first 11 unnecessary 11 lines which don't contain useful data.
+    also parsing date and time and cleaning missing values.
+    it will return a DataFrame indexed by 'datetime' with 'Sea Level' column.
+    
     """
 
-    # Read the file, skipping first 9 header rows
     df = pd.read_csv(
         filename,
-        skiprows=9,
-        sep=r'\s+',  
+        skiprows=11,
+        sep=r'\s+',
         header=None,
-        names=["Cycle", "Date", "Time", "SeaLevel", "Residual"],
-        engine='python'
+        engine='python',
+        on_bad_lines='skip'
     )
 
-    # Combine Date and Time into a single 'datetime' column
+    df = df[[1, 2, 3]]  # date, time, sea level
+    df.columns = ['Date', 'Time', 'Sea Level']
+
     df['datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], errors='coerce')
-
-    # Here replaces any flagged values (ending in M, N or T) with NaN in SeaLevel column.
-   df['SeaLevel'].replace(
-    to_replace=r'.*[MNT]$', value=np.nan, regex=True, inplace=True
+    
+    df.replace(
+        to_replace=r'.*[MNT]$',
+        value={'Sea Level': np.nan},
+        regex=True,
+        inplace=True   # 'inplace' tells pandas to edit the DataFrame directly,instead of returning a new modified copy.
     )
-   
-    # Convert SeaLevel to float (any non-numeric will become NaN)
-    df['SeaLevel'] = pd.to_numeric(df['SeaLevel'], errors='coerce')
-
-    # Drop rows where datetime is NaT (just in case)
+    
+    df['Sea Level'] = pd.to_numeric(df['Sea Level'], errors='coerce')
     df = df.dropna(subset=['datetime'])
 
-    # Return only datetime and SeaLevel columns, reset index
-    return df[['datetime', 'SeaLevel']].reset_index(drop=True)
+    df = df.set_index('datetime')
+    
+    return df[['Sea Level']]
 
-    return 0
- 
-#this extracts only this year's data, removes mean   
-def extract_single_year_remove_mean(year, data):
+  
    
-
-    return 
-
-#basically like above but for a certain date rangee
 def extract_section_remove_mean(start, end, data):
+    
+    """
+    Extracts a time slice of the tidal data between 'start' and 'end' datetimes,
+    removes missing values, and subtracts the mean sea level so the result is zero-centered.
+    """
+    
+    section = data.loc[start:end]
+    section = section.dropna(subset=['Sea Level'])
+    section['Sea Level'] = section['Sea Level'] - section['Sea Level'].mean()
+    return section
+
+# Due to flagged/missing data in the files, the actual number of valid records was 1358 instead of 2064 between the given dates. 
+# The function drops NaNs as required by the spec before computing the mean.
 
 
-    return 
-
-#apparently combines two data frames (stacks them) but need to make sure time collumns are aligned.
 def join_data(data1, data2):
-
-    return 
+   
+    """
+    Joins two time-indexed tidal DataFrames into one, sorting by datetime.
+    """
+  
+    combined = pd.concat([data1, data2])
+    combined = combined.sort_index()
+    return combined
 
 
 #linear regression ie. scipy.stats.linregress to calculate rate of sea level change
